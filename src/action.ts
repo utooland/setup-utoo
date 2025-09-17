@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { mkdirSync, existsSync } from "node:fs";
@@ -33,72 +32,47 @@ export type CacheState = {
 
 export default async (options: Input): Promise<Output> => {
   const version = options.version || "latest";
-  const registry = options.registry || "https://registry.npmjs.org/";
+  const registry = options.registry || "https://registry.npmmirror.com/";
   const utooCacheEnabled = isUtooCacheEnabled(options);
   const storeCacheEnabled = options.cacheStore !== false && isFeatureAvailable();
 
   // Setup npm cache and bin directories
-  const npmCacheDir = join(homedir(), ".cache", "nm");
+  const StoreCacheDir = join(homedir(), ".cache", "nm");
   const binPath = join(homedir(), ".npm", "bin");
-  
+
   try {
     mkdirSync(binPath, { recursive: true });
-    mkdirSync(npmCacheDir, { recursive: true });
+    mkdirSync(StoreCacheDir, { recursive: true });
   } catch (error: any) {
     if (error.code !== "EEXIST") {
       throw error;
     }
   }
-  
+
   addPath(binPath);
 
   const exe = (name: string) =>
     process.platform === "win32" ? `${name}.cmd` : name;
   const utooPath = join(binPath, exe("utoo"));
-  const utPath = join(binPath, exe("ut"));
 
   let actualVersion: string | undefined;
   let cacheHit = false;
 
   // Handle npm store cache
   if (storeCacheEnabled) {
-    const storeCacheKey = createHash("sha1")
-      .update(`utoo-store-${registry}`)
-      .digest("base64");
-    
-    const storeCacheRestored = await restoreCache([npmCacheDir], storeCacheKey);
+    const storeCacheKey = `utoo-store-${registry}`;
+
+    const storeCacheRestored = await restoreCache([StoreCacheDir], storeCacheKey);
     if (storeCacheRestored) {
       info(`Restored npm cache from store cache`);
     }
   }
 
-  // Handle utoo installation cache
-  if (utooCacheEnabled) {
-    const utooCacheKey = createHash("sha1")
-      .update(`utoo-${version}-${registry}`)
-      .digest("base64");
-
-    const cacheRestored = await restoreCache([binPath], utooCacheKey);
-    if (cacheRestored && existsSync(utooPath)) {
-      actualVersion = await getUtooVersion(utooPath);
-      if (actualVersion) {
-        cacheHit = true;
-        info(`Using a cached version of Utoo: ${actualVersion}`);
-      } else {
-        warning(
-          `Found a cached version of Utoo but it appears to be corrupted`
-        );
-      }
-    }
-  }
-
-  if (!cacheHit) {
-    info(`Installing Utoo version ${version} from ${registry}`);
-    actualVersion = await retry(
-      async () => await installUtoo(version, registry, binPath, npmCacheDir),
-      3
-    );
-  }
+  info(`Installing Utoo version ${version} from ${registry}`);
+  actualVersion = await retry(
+    async () => await installUtoo(version, registry, binPath, StoreCacheDir),
+    3
+  );
 
   if (!actualVersion) {
     throw new Error(
@@ -111,7 +85,7 @@ export default async (options: Input): Promise<Output> => {
     storeCacheEnabled,
     cacheHit,
     utooPath,
-    npmCacheDir,
+    npmCacheDir: StoreCacheDir,
     version: actualVersion,
     registry,
   };
@@ -129,10 +103,9 @@ async function installUtoo(
   version: string,
   registry: string,
   binPath: string,
-  npmCacheDir: string
 ): Promise<string | undefined> {
   const packageName = version === "latest" ? "utoo" : `utoo@${version}`;
-  
+
   // Install utoo globally using npm with custom cache directory
   const { exitCode, stderr } = await getExecOutput(
     "npm",
@@ -142,7 +115,6 @@ async function installUtoo(
       packageName,
       `--registry=${registry}`,
       `--prefix=${binPath.replace(/[/\\]bin$/, "")}`,
-      `--cache=${npmCacheDir}`,
     ],
     {
       ignoreReturnCode: true,
@@ -155,9 +127,8 @@ async function installUtoo(
 
   // Check multiple possible paths for the executable
   const possiblePaths = [
-    join(binPath, process.platform === "win32" ? "utoo.cmd" : "utoo"),
     join(binPath, "utoo"),
-    join(binPath, "utoo.cmd"),
+    join(binPath, "ut"),
   ];
 
   for (const path of possiblePaths) {
@@ -192,7 +163,7 @@ async function getUtooVersion(exe: string): Promise<string | undefined> {
       ignoreReturnCode: true,
       silent: true,
     });
-    
+
     if (result.exitCode === 0 && result.stdout.trim()) {
       // Extract version number from output like "utoo 1.0.0" or just "1.0.0"
       const match = result.stdout.trim().match(/(\d+\.\d+\.\d+(?:-[^\s]+)?)/);
@@ -201,6 +172,6 @@ async function getUtooVersion(exe: string): Promise<string | undefined> {
   } catch (error) {
     // If version check fails, utoo might not be properly installed
   }
-  
+
   return undefined;
 }

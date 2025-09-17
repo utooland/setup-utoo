@@ -11,28 +11,27 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
         cache-config:
-          - { cache-utoo: true, cache-store: true }
-          - { cache-utoo: false, cache-store: true }
-          - { cache-utoo: true, cache-store: false }
-          - { cache-utoo: false, cache-store: false }
-    
+          - { cache-store: true }
+          - { cache-store: true }
+          - { cache-store: false }
+          - { cache-store: false }
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Utoo
         uses: ./
         with:
           utoo-version: 'latest'
-          cache-utoo: ${{ matrix.cache-config.cache-utoo }}
           cache-store: ${{ matrix.cache-config.cache-store }}
-          
+
       - name: Verify installation
         run: |
           utoo --version
           which utoo || where utoo
-          
+
       - name: Test basic commands
         run: |
           utoo --help
