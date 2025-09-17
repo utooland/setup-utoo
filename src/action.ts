@@ -121,7 +121,7 @@ async function installUtoo(
       "-g",
       packageName,
       `--registry=${registry}`,
-      `--prefix=${binPath.replace(/bin$/, "")}`,
+      `--prefix=${binPath.replace(/[/\\]bin$/, "")}`,
     ],
     {
       ignoreReturnCode: true,
@@ -132,8 +132,21 @@ async function installUtoo(
     throw new Error(`Failed to install utoo: ${stderr}`);
   }
 
-  const utooPath = join(binPath, process.platform === "win32" ? "utoo.cmd" : "utoo");
-  return await getUtooVersion(utooPath);
+  // Check multiple possible paths for the executable
+  const possiblePaths = [
+    join(binPath, process.platform === "win32" ? "utoo.cmd" : "utoo"),
+    join(binPath, "utoo"),
+    join(binPath, "utoo.cmd"),
+  ];
+
+  for (const path of possiblePaths) {
+    const version = await getUtooVersion(path);
+    if (version) {
+      return version;
+    }
+  }
+
+  throw new Error("Utoo was installed but the executable could not be found or verified");
 }
 
 function isCacheEnabled(options: Input): boolean {
@@ -149,8 +162,14 @@ function isCacheEnabled(options: Input): boolean {
 
 async function getUtooVersion(exe: string): Promise<string | undefined> {
   try {
+    // Check if the file exists first
+    if (!existsSync(exe)) {
+      return undefined;
+    }
+
     const result = await getExecOutput(exe, ["--version"], {
       ignoreReturnCode: true,
+      silent: true,
     });
     
     if (result.exitCode === 0 && result.stdout.trim()) {
