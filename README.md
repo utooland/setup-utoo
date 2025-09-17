@@ -21,13 +21,14 @@ GitHub Action for setting up [Utoo](https://github.com/utooland/utoo) - a unifie
     registry: 'https://registry.npmjs.org/'
 ```
 
-### Disable Cache
+### Cache Configuration
 
 ```yaml
 - uses: utooland/setup-utoo@v1
   with:
     utoo-version: 'latest'
-    no-cache: true
+    cache-utoo: false      # Disable utoo installation caching
+    cache-store: false     # Disable npm store caching
 ```
 
 ## Inputs
@@ -36,7 +37,8 @@ GitHub Action for setting up [Utoo](https://github.com/utooland/utoo) - a unifie
 |-------|-------------|---------|
 | `utoo-version` | The version of Utoo to install (e.g. "latest", "1.0.0", "1.0.x") | `latest` |
 | `registry` | The URL of the npm registry to use for installing Utoo | `https://registry.npmjs.org/` |
-| `no-cache` | Disable caching of utoo installation | `false` |
+| `cache-utoo` | Cache utoo installation for faster subsequent runs | `true` |
+| `cache-store` | Cache npm store directory (~/.cache/nm) for faster package installations | `true` |
 
 ## Outputs
 
@@ -73,7 +75,9 @@ jobs:
 ## Features
 
 - ✅ **Registry Support**: Configure custom npm registries
-- ✅ **Cache Support**: Automatic caching for faster builds  
+- ✅ **Dual Cache Support**: 
+  - **Utoo Installation Cache**: Cache utoo binary installations for faster setup
+  - **NPM Store Cache**: Cache npm packages in ~/.cache/nm for faster dependency installations
 - ✅ **Cross-platform**: Works on Ubuntu, macOS, and Windows runners
 - ✅ **Version Management**: Support for specific versions and ranges
 

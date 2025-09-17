@@ -15,11 +15,16 @@ inputs:
     description: The URL of the npm registry to use for installing Utoo.
     required: false
     default: https://registry.npmjs.org/
-  no-cache:
+  cache-utoo:
     required: false
     type: boolean
-    default: false
-    description: Disable caching of utoo installation.
+    default: true
+    description: Cache utoo installation for faster subsequent runs.
+  cache-store:
+    required: false
+    type: boolean
+    default: true
+    description: Cache npm store directory (~/.cache/nm) for faster package installations.
 
 outputs:
   utoo-version:

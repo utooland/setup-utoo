@@ -85,7 +85,31 @@ jobs:
         ut --help
 ```
 
-## Without Cache
+## Cache Configuration
+
+```yaml
+name: Custom Cache Configuration
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Utoo (disable utoo caching, keep store cache)
+      uses: utooland/setup-utoo@v1
+      with:
+        utoo-version: 'latest'
+        cache-utoo: false
+        cache-store: true
+        
+    - name: Use Utoo
+      run: utoo install
+
+## Without Any Cache
 
 ```yaml
 name: Build without Cache
@@ -103,7 +127,8 @@ jobs:
       uses: utooland/setup-utoo@v1
       with:
         utoo-version: 'latest'
-        no-cache: true
+        cache-utoo: false
+        cache-store: false
         
     - name: Use Utoo
       run: utoo install
