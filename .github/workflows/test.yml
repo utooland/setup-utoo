@@ -1,0 +1,37 @@
+name: Test setup-utoo action
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        cache-config:
+          - { cache-store: true }
+          - { cache-store: true }
+          - { cache-store: false }
+          - { cache-store: false }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Utoo
+        uses: ./
+        with:
+          utoo-version: 'latest'
+          cache-store: ${{ matrix.cache-config.cache-store }}
+
+      - name: Verify installation
+        run: |
+          utoo --version
+          which utoo || where utoo
+
+      - name: Test basic commands
+        run: |
+          utoo --help

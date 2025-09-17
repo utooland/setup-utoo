@@ -1,0 +1,38 @@
+{
+  "private": true,
+  "name": "setup-utoo",
+  "version": "1.0.0",
+  "description": "Setup Utoo on GitHub Actions.",
+  "keywords": [
+    "utoo",
+    "utoo.js",
+    "github",
+    "actions",
+    "setup"
+  ],
+  "homepage": "https://github.com/utooland/utoo",
+  "main": "dist/index.js",
+  "repository": "git@github.com:utooland/setup-utoo.git",
+  "bugs": "https://github.com/utooland/setup-utoo/issues",
+  "license": "MIT",
+  "author": "utooland",
+  "scripts": {
+    "format": "prettier --write src *.yml *.json *.md",
+    "build": "esbuild --target=node20 --outfile=dist/setup/index.js --bundle --keep-names --minify --platform=node --format=cjs src/index.ts && esbuild --target=node20 --outfile=dist/cache-save/index.js --bundle --keep-names --minify --platform=node --format=cjs src/cache-save.ts",
+    "start": "npm run build && node dist/setup/index.js"
+  },
+  "dependencies": {
+    "@actions/cache": "^4.0.0",
+    "@actions/core": "^1.11.0",
+    "@actions/exec": "^1.1.1",
+    "@actions/glob": "^0.4.0",
+    "@actions/io": "^1.1.2",
+    "@actions/tool-cache": "^2.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.2",
+    "esbuild": "^0.19.2",
+    "prettier": "^3.4.2",
+    "typescript": "^4.9.5"
+  }
+}
