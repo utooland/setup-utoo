@@ -92,6 +92,10 @@ export default async (options: Input): Promise<Output> => {
 
   saveState("cache", JSON.stringify(cacheState));
 
+  if (!registry.includes("https://registry.npmmirror.com")) {
+    await setRegistry(registry);
+  }
+
   return {
     version: actualVersion,
     utooPath,
@@ -150,6 +154,24 @@ function isUtooCacheEnabled(options: Input): boolean {
     return false;
   }
   return isFeatureAvailable();
+}
+
+async function setRegistry(registry: string): Promise<void> {
+  try {
+    const { exitCode, stderr } = await getExecOutput("ut", [
+      "config",
+      "set",
+      "registry",
+      registry,
+      '--global',
+    ]);
+
+    if (exitCode !== 0) {
+      warning(`Failed to set npm registry: ${stderr}`);
+    }
+  } catch (error) {
+    // warning(`Failed to set npm registry: ${error.message}`);
+  }
 }
 
 async function getUtooVersion(exe: string): Promise<string | undefined> {
