@@ -7,6 +7,8 @@ import { getExecOutput } from "@actions/exec";
 import { saveState } from "@actions/core";
 import { retry } from "./utils";
 
+const NPMMIRROR_REGISTRY = "https://registry.npmmirror.com";
+
 export type Input = {
   version?: string;
   registry?: string;
@@ -32,7 +34,7 @@ export type CacheState = {
 
 export default async (options: Input): Promise<Output> => {
   const version = options.version || "latest";
-  const registry = options.registry || "https://registry.npmmirror.com/";
+  const registry = options.registry;
   const utooCacheEnabled = isUtooCacheEnabled(options);
   const storeCacheEnabled = options.cacheStore !== false && isFeatureAvailable();
 
@@ -51,9 +53,7 @@ export default async (options: Input): Promise<Output> => {
 
   addPath(binPath);
 
-  const exe = (name: string) =>
-    process.platform === "win32" ? `${name}.cmd` : name;
-  const utooPath = join(binPath, exe("utoo"));
+  const utooPath = join(binPath, "utoo");
 
   let actualVersion: string | undefined;
   let cacheHit = false;
@@ -92,7 +92,7 @@ export default async (options: Input): Promise<Output> => {
 
   saveState("cache", JSON.stringify(cacheState));
 
-  if (!registry.includes("https://registry.npmmirror.com")) {
+  if (!registry.includes(NPMMIRROR_REGISTRY)) {
     await setRegistry(registry);
   }
 
