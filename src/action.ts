@@ -36,7 +36,7 @@ export default async (options: Input): Promise<Output> => {
   const version = options.version || "latest";
   const registry = options.registry;
   const utooCacheEnabled = isUtooCacheEnabled(options);
-  const storeCacheEnabled = options.cacheStore !== false && isFeatureAvailable();
+  const storeCacheEnabled = options.cacheStore === true && isFeatureAvailable();
 
   // Setup npm cache and bin directories
   const StoreCacheDir = join(homedir(), ".cache", "nm");
