@@ -27,8 +27,7 @@ GitHub Action for setting up [Utoo](https://github.com/utooland/utoo) - a unifie
 - uses: utooland/setup-utoo@v1
   with:
     utoo-version: 'latest'
-    cache-utoo: false      # Disable utoo installation caching
-    cache-store: false     # Disable npm store caching
+    cache-store: true # enable ~/.cache/nm tgz cache
 ```
 
 ## Inputs
@@ -37,16 +36,13 @@ GitHub Action for setting up [Utoo](https://github.com/utooland/utoo) - a unifie
 |-------|-------------|---------|
 | `utoo-version` | The version of Utoo to install (e.g. "latest", "1.0.0", "1.0.x") | `latest` |
 | `registry` | The URL of the npm registry to use for installing Utoo | `https://registry.npmjs.org/` |
-| `cache-utoo` | Cache utoo installation for faster subsequent runs | `true` |
-| `cache-store` | Cache npm store directory (~/.cache/nm) for faster package installations | `true` |
+| `cache-store` | Cache npm store directory (~/.cache/nm) for faster package installations | `false` |
 
 ## Outputs
 
 | Output | Description |
 |--------|-------------|
 | `utoo-version` | The version of Utoo that was installed |
-| `utoo-path` | The path to the Utoo executable |
-| `cache-hit` | Whether the version of Utoo was cached |
 
 ## Example Workflow
 
@@ -60,14 +56,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: utooland/setup-utoo@v1
         with:
           utoo-version: 'latest'
-          
+
       - name: Install dependencies
-        run: utoo install
-        
+        run: utoo
+
       - name: Build project
         run: utoo build
 ```
@@ -75,10 +71,9 @@ jobs:
 ## Features
 
 - ✅ **Registry Support**: Configure custom npm registries
-- ✅ **Dual Cache Support**: 
-  - **Utoo Installation Cache**: Cache utoo binary installations for faster setup
-  - **NPM Store Cache**: Cache npm packages in ~/.cache/nm for faster dependency installations
-- ✅ **Cross-platform**: Works on Ubuntu, macOS, and Windows runners
+- ✅ **Dual Cache Support**:
+- ✅ **NPM Store Cache**: Cache npm packages in ~/.cache/nm for
+- ✅ **Cross-platform**: Works on Ubuntu, macOS
 - ✅ **Version Management**: Support for specific versions and ranges
 
 ## License
