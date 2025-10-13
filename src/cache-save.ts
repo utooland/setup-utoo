@@ -14,9 +14,10 @@ async function run(): Promise<void> {
 
     // Save Utoo binary cache (only if not already cached)
     if (state.utooCacheEnabled && !state.cacheHit) {
-      const utooCacheKey = `utoo-binary-${state.version}`;
+      const utooCacheKey = `utoo-binary-${state.resolvedVersion}`;
 
       info(`Saving Utoo binary cache with key: ${utooCacheKey}`);
+      info(`Actual installed version: ${state.version}`);
       info(`Cache paths: ${state.utooCachePaths.join(', ')}`);
       try {
         await saveCache(state.utooCachePaths, utooCacheKey);
