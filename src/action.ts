@@ -49,6 +49,7 @@ export default async (options: Input): Promise<Output> => {
   const utooCachePaths = [
     join(binPath, "utoo"),
     join(binPath, "ut"),
+    join(binPath, "utx"),
     npmLibDir,
   ];
 
