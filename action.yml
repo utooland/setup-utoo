@@ -23,7 +23,7 @@ inputs:
   cache-utoo:
     required: false
     type: boolean
-    default: false
+    default: true
     description: Cache installed Utoo binary to avoid reinstallation on subsequent runs.
 
 outputs:

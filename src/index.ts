@@ -10,7 +10,7 @@ runAction({
   version: getInput("utoo-version") || "latest",
   registry: getInput("registry") || "https://registry.npmjs.org/",
   cacheStore: getBooleanInput("cache-store") === true, // Default false
-  cacheUtoo: getBooleanInput("cache-utoo") === true, // Default false
+  cacheUtoo: getBooleanInput("cache-utoo") === true, // Default true
 })
   .then(({ version, utooPath, cacheHit }) => {
     setOutput("utoo-version", version);
