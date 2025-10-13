@@ -20,6 +20,11 @@ inputs:
     type: boolean
     default: false
     description: Cache npm store directory (~/.cache/nm) for faster package installations.
+  cache-utoo:
+    required: false
+    type: boolean
+    default: false
+    description: Cache installed Utoo binary to avoid reinstallation on subsequent runs.
 
 outputs:
   utoo-version:

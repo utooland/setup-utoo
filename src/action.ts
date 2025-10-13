@@ -28,6 +28,7 @@ export type CacheState = {
   cacheHit: boolean;
   utooPath: string;
   npmCacheDir: string;
+  utooCachePaths: string[];
   version: string;
   registry: string;
 };
@@ -41,6 +42,14 @@ export default async (options: Input): Promise<Output> => {
   // Setup npm cache and bin directories
   const StoreCacheDir = join(homedir(), ".cache", "nm");
   const binPath = join(homedir(), ".npm", "bin");
+  const npmLibDir = join(homedir(), ".npm", "lib", "node_modules", "utoo");
+
+  // Define specific paths to cache for Utoo
+  const utooCachePaths = [
+    join(binPath, "utoo"),
+    join(binPath, "ut"),
+    npmLibDir,
+  ];
 
   try {
     mkdirSync(binPath, { recursive: true });
@@ -58,8 +67,30 @@ export default async (options: Input): Promise<Output> => {
   let actualVersion: string | undefined;
   let cacheHit = false;
 
+  // Handle Utoo binary cache
+  if (utooCacheEnabled) {
+    const utooCacheKey = `utoo-binary-${version}`;
+
+    info(`Attempting to restore Utoo binary cache with key: ${utooCacheKey}`);
+    const utooCacheRestored = await restoreCache(utooCachePaths, utooCacheKey);
+
+    if (utooCacheRestored) {
+      info(`Restored Utoo binary from cache`);
+
+      // Verify the cached utoo is working
+      actualVersion = await getUtooVersion(utooPath);
+
+      if (actualVersion) {
+        info(`Using cached Utoo version ${actualVersion}`);
+        cacheHit = true;
+      } else {
+        info(`Cached Utoo binary is invalid, will reinstall`);
+      }
+    }
+  }
+
   // Handle npm store cache
-  if (storeCacheEnabled) {
+  if (storeCacheEnabled && !cacheHit) {
     const storeCacheKey = `utoo-store-${registry}`;
 
     const storeCacheRestored = await restoreCache([StoreCacheDir], storeCacheKey);
@@ -68,16 +99,19 @@ export default async (options: Input): Promise<Output> => {
     }
   }
 
-  info(`Installing Utoo version ${version} from ${registry}`);
-  actualVersion = await retry(
-    async () => await installUtoo(version, registry, binPath, StoreCacheDir),
-    3
-  );
-
-  if (!actualVersion) {
-    throw new Error(
-      "Failed to install Utoo or get its version. Please try again."
+  // Install Utoo if not restored from cache
+  if (!cacheHit) {
+    info(`Installing Utoo version ${version} from ${registry}`);
+    actualVersion = await retry(
+      async () => await installUtoo(version, registry, binPath),
+      3
     );
+
+    if (!actualVersion) {
+      throw new Error(
+        "Failed to install Utoo or get its version. Please try again."
+      );
+    }
   }
 
   const cacheState: CacheState = {
@@ -86,6 +120,7 @@ export default async (options: Input): Promise<Output> => {
     cacheHit,
     utooPath,
     npmCacheDir: StoreCacheDir,
+    utooCachePaths,
     version: actualVersion,
     registry,
   };
