@@ -28,19 +28,29 @@ export type CacheState = {
   cacheHit: boolean;
   utooPath: string;
   npmCacheDir: string;
+  utooCachePaths: string[];
   version: string;
+  resolvedVersion: string;
   registry: string;
 };
 
 export default async (options: Input): Promise<Output> => {
   const version = options.version || "latest";
-  const registry = options.registry;
+  const registry = options.registry || "https://registry.npmjs.org/";
   const utooCacheEnabled = isUtooCacheEnabled(options);
   const storeCacheEnabled = options.cacheStore === true && isFeatureAvailable();
 
   // Setup npm cache and bin directories
   const StoreCacheDir = join(homedir(), ".cache", "nm");
   const binPath = join(homedir(), ".npm", "bin");
+  const npmLibDir = join(homedir(), ".npm", "lib", "node_modules", "utoo");
+
+  // Define specific paths to cache for Utoo
+  const utooCachePaths = [
+    join(binPath, "utoo"),
+    join(binPath, "ut"),
+    npmLibDir,
+  ];
 
   try {
     mkdirSync(binPath, { recursive: true });
@@ -58,8 +68,36 @@ export default async (options: Input): Promise<Output> => {
   let actualVersion: string | undefined;
   let cacheHit = false;
 
+  // Resolve version to actual version number for cache key
+  let resolvedVersion = version;
+  if (utooCacheEnabled) {
+    resolvedVersion = await resolveVersion(version, registry);
+  }
+
+  // Handle Utoo binary cache
+  if (utooCacheEnabled) {
+    const utooCacheKey = `utoo-binary-${resolvedVersion}`;
+
+    info(`Attempting to restore Utoo binary cache with key: ${utooCacheKey}`);
+    const utooCacheRestored = await restoreCache(utooCachePaths, utooCacheKey);
+
+    if (utooCacheRestored) {
+      info(`Restored Utoo binary from cache`);
+
+      // Verify the cached utoo is working by checking package.json
+      actualVersion = await getUtooVersion(binPath);
+
+      if (actualVersion) {
+        info(`Using cached Utoo version ${actualVersion}`);
+        cacheHit = true;
+      } else {
+        info(`Cached Utoo binary is invalid, will reinstall`);
+      }
+    }
+  }
+
   // Handle npm store cache
-  if (storeCacheEnabled) {
+  if (storeCacheEnabled && !cacheHit) {
     const storeCacheKey = `utoo-store-${registry}`;
 
     const storeCacheRestored = await restoreCache([StoreCacheDir], storeCacheKey);
@@ -68,16 +106,19 @@ export default async (options: Input): Promise<Output> => {
     }
   }
 
-  info(`Installing Utoo version ${version} from ${registry}`);
-  actualVersion = await retry(
-    async () => await installUtoo(version, registry, binPath, StoreCacheDir),
-    3
-  );
-
-  if (!actualVersion) {
-    throw new Error(
-      "Failed to install Utoo or get its version. Please try again."
+  // Install Utoo if not restored from cache
+  if (!cacheHit) {
+    info(`Installing Utoo version ${version} from ${registry}`);
+    actualVersion = await retry(
+      async () => await installUtoo(version, registry, binPath),
+      3
     );
+
+    if (!actualVersion) {
+      throw new Error(
+        "Failed to install Utoo or get its version. Please try again."
+      );
+    }
   }
 
   const cacheState: CacheState = {
@@ -86,7 +127,9 @@ export default async (options: Input): Promise<Output> => {
     cacheHit,
     utooPath,
     npmCacheDir: StoreCacheDir,
+    utooCachePaths,
     version: actualVersion,
+    resolvedVersion,
     registry,
   };
 
@@ -129,28 +172,18 @@ async function installUtoo(
     throw new Error(`Failed to install utoo: ${stderr}`);
   }
 
-  // Check multiple possible paths for the executable
-  const possiblePaths = [
-    join(binPath, "utoo"),
-    join(binPath, "ut"),
-  ];
-
-  for (const path of possiblePaths) {
-    const version = await getUtooVersion(path);
-    if (version) {
-      return version;
-    }
+  // Verify installation by reading package.json
+  const installedVersion = await getUtooVersion(binPath);
+  if (installedVersion) {
+    return installedVersion;
   }
 
-  throw new Error("Utoo was installed but the executable could not be found or verified");
+  throw new Error("Utoo was installed but package.json could not be found or read");
 }
 
 function isUtooCacheEnabled(options: Input): boolean {
-  const { version, cacheUtoo } = options;
+  const { cacheUtoo } = options;
   if (!cacheUtoo) {
-    return false;
-  }
-  if (!version || /latest/i.test(version)) {
     return false;
   }
   return isFeatureAvailable();
@@ -174,26 +207,64 @@ async function setRegistry(registry: string): Promise<void> {
   }
 }
 
-async function getUtooVersion(exe: string): Promise<string | undefined> {
+async function getUtooVersion(binPath: string): Promise<string | undefined> {
   try {
-    // Check if the file exists first
-    if (!existsSync(exe)) {
+    const packageJsonPath = join(
+      binPath.replace(/[/\\]bin$/, ""),
+      "lib",
+      "node_modules",
+      "utoo",
+      "package.json"
+    );
+
+    // Check if package.json exists
+    if (!existsSync(packageJsonPath)) {
       return undefined;
     }
 
-    const result = await getExecOutput(exe, ["--version"], {
-      ignoreReturnCode: true,
-      silent: true,
-    });
+    // Read and parse package.json
+    const fs = await import("node:fs/promises");
+    const content = await fs.readFile(packageJsonPath, "utf-8");
+    const packageJson = JSON.parse(content);
 
-    if (result.exitCode === 0 && result.stdout.trim()) {
-      // Extract version number from output like "utoo 1.0.0" or just "1.0.0"
-      const match = result.stdout.trim().match(/(\d+\.\d+\.\d+(?:-[^\s]+)?)/);
-      return match ? match[1] : result.stdout.trim();
-    }
+    return packageJson.version;
   } catch (error) {
-    // If version check fails, utoo might not be properly installed
+    // If reading package.json fails, utoo might not be properly installed
+    return undefined;
+  }
+}
+
+async function resolveVersion(
+  version: string,
+  registry: string
+): Promise<string> {
+  // If it's already a specific version (e.g., "1.0.0"), return as-is
+  if (/^\d+\.\d+\.\d+/.test(version)) {
+    return version;
   }
 
-  return undefined;
+  // For "latest" or version ranges, fetch from registry
+  try {
+    info(`Resolving version "${version}" from registry...`);
+
+    const manifestUrl = `${registry.replace(/\/$/, '')}/utoo/${version}`;
+    const response = await fetch(manifestUrl);
+
+    if (!response.ok) {
+      warning(`Failed to fetch version manifest: ${response.statusText}`);
+      return version; // Fallback to original version string
+    }
+
+    const manifest = await response.json();
+    const resolvedVersion = manifest.version;
+
+    if (resolvedVersion) {
+      info(`Resolved "${version}" to "${resolvedVersion}"`);
+      return resolvedVersion;
+    }
+  } catch (error) {
+    warning(`Failed to resolve version: ${error}`);
+  }
+
+  return version; // Fallback to original version string
 }

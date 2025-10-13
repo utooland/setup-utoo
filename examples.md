@@ -126,7 +126,7 @@ jobs:
       uses: utooland/setup-utoo@v1
       with:
         utoo-version: 'latest'
-        cache-utoo: false
+        cache-utoo: true
         cache-store: false
 
     - name: Use Utoo

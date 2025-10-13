@@ -23,11 +23,20 @@ GitHub Action for setting up [Utoo](https://github.com/utooland/utoo) - a unifie
 
 ### Cache Configuration
 
+Cache installed Utoo binary to avoid reinstallation:
+```yaml
+- uses: utooland/setup-utoo@v1
+  with:
+    utoo-version: 'latest' # Works with 'latest', version ranges, or specific versions
+    cache-utoo: true # Cache the installed Utoo binary
+```
+
+Cache npm store for faster package installations:
 ```yaml
 - uses: utooland/setup-utoo@v1
   with:
     utoo-version: 'latest'
-    cache-store: true # enable ~/.cache/nm tgz cache
+    cache-store: true # Cache ~/.cache/nm directory
 ```
 
 ## Inputs
@@ -36,6 +45,7 @@ GitHub Action for setting up [Utoo](https://github.com/utooland/utoo) - a unifie
 |-------|-------------|---------|
 | `utoo-version` | The version of Utoo to install (e.g. "latest", "1.0.0", "1.0.x") | `latest` |
 | `registry` | The URL of the npm registry to use for installing Utoo | `https://registry.npmjs.org/` |
+| `cache-utoo` | Cache installed Utoo binary to avoid reinstallation on subsequent runs. Automatically resolves "latest" to actual version for proper cache invalidation. | `false` |
 | `cache-store` | Cache npm store directory (~/.cache/nm) for faster package installations | `false` |
 
 ## Outputs
@@ -72,7 +82,8 @@ jobs:
 
 - ✅ **Registry Support**: Configure custom npm registries
 - ✅ **Dual Cache Support**:
-- ✅ **NPM Store Cache**: Cache npm packages in ~/.cache/nm for
+  - **Utoo Binary Cache**: Cache the installed Utoo binary to skip reinstallation
+  - **NPM Store Cache**: Cache npm packages in ~/.cache/nm for faster package installations
 - ✅ **Cross-platform**: Works on Ubuntu, macOS
 - ✅ **Version Management**: Support for specific versions and ranges
 

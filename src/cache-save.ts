@@ -12,17 +12,36 @@ async function run(): Promise<void> {
 
     const state: CacheState = JSON.parse(stateJson);
 
+    // Save Utoo binary cache (only if not already cached)
+    if (state.utooCacheEnabled && !state.cacheHit) {
+      const utooCacheKey = `utoo-binary-${state.resolvedVersion}`;
+
+      info(`Saving Utoo binary cache with key: ${utooCacheKey}`);
+      info(`Actual installed version: ${state.version}`);
+      info(`Cache paths: ${state.utooCachePaths.join(', ')}`);
+      try {
+        await saveCache(state.utooCachePaths, utooCacheKey);
+        info("Utoo binary cache saved successfully");
+      } catch (error) {
+        info(`Failed to save Utoo binary cache: ${error}`);
+      }
+    }
+
     // Save npm store cache
     if (state.storeCacheEnabled) {
       const storeCacheKey = `utoo-store-${state.registry}`;
 
       info(`Saving npm store cache with key: ${storeCacheKey}`);
-      await saveCache([state.npmCacheDir], storeCacheKey);
-      info("Npm store cache saved successfully");
+      try {
+        await saveCache([state.npmCacheDir], storeCacheKey);
+        info("Npm store cache saved successfully");
+      } catch (error) {
+        info(`Failed to save npm store cache: ${error}`);
+      }
     }
 
-    if (!state.storeCacheEnabled) {
-      info("caching store is disabled");
+    if (!state.utooCacheEnabled && !state.storeCacheEnabled) {
+      info("All caching is disabled");
     }
   } catch (error) {
     info(`Failed to save cache: ${error}`);
