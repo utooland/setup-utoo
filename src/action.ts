@@ -35,7 +35,7 @@ export type CacheState = {
 
 export default async (options: Input): Promise<Output> => {
   const version = options.version || "latest";
-  const registry = options.registry;
+  const registry = options.registry || "https://registry.npmjs.org/";
   const utooCacheEnabled = isUtooCacheEnabled(options);
   const storeCacheEnabled = options.cacheStore === true && isFeatureAvailable();
 
@@ -67,9 +67,15 @@ export default async (options: Input): Promise<Output> => {
   let actualVersion: string | undefined;
   let cacheHit = false;
 
+  // Resolve version to actual version number for cache key
+  let resolvedVersion = version;
+  if (utooCacheEnabled) {
+    resolvedVersion = await resolveVersion(version, registry);
+  }
+
   // Handle Utoo binary cache
   if (utooCacheEnabled) {
-    const utooCacheKey = `utoo-binary-${version}`;
+    const utooCacheKey = `utoo-binary-${resolvedVersion}`;
 
     info(`Attempting to restore Utoo binary cache with key: ${utooCacheKey}`);
     const utooCacheRestored = await restoreCache(utooCachePaths, utooCacheKey);
@@ -181,11 +187,8 @@ async function installUtoo(
 }
 
 function isUtooCacheEnabled(options: Input): boolean {
-  const { version, cacheUtoo } = options;
+  const { cacheUtoo } = options;
   if (!cacheUtoo) {
-    return false;
-  }
-  if (!version || /latest/i.test(version)) {
     return false;
   }
   return isFeatureAvailable();
@@ -231,4 +234,39 @@ async function getUtooVersion(exe: string): Promise<string | undefined> {
   }
 
   return undefined;
+}
+
+async function resolveVersion(
+  version: string,
+  registry: string
+): Promise<string> {
+  // If it's already a specific version (e.g., "1.0.0"), return as-is
+  if (/^\d+\.\d+\.\d+/.test(version)) {
+    return version;
+  }
+
+  // For "latest" or version ranges, fetch from registry
+  try {
+    info(`Resolving version "${version}" from registry...`);
+
+    const manifestUrl = `${registry.replace(/\/$/, '')}/utoo/${version}`;
+    const response = await fetch(manifestUrl);
+
+    if (!response.ok) {
+      warning(`Failed to fetch version manifest: ${response.statusText}`);
+      return version; // Fallback to original version string
+    }
+
+    const manifest = await response.json();
+    const resolvedVersion = manifest.version;
+
+    if (resolvedVersion) {
+      info(`Resolved "${version}" to "${resolvedVersion}"`);
+      return resolvedVersion;
+    }
+  } catch (error) {
+    warning(`Failed to resolve version: ${error}`);
+  }
+
+  return version; // Fallback to original version string
 }

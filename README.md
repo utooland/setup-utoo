@@ -27,7 +27,7 @@ Cache installed Utoo binary to avoid reinstallation:
 ```yaml
 - uses: utooland/setup-utoo@v1
   with:
-    utoo-version: '1.0.0' # Must specify version for cache-utoo to work
+    utoo-version: 'latest' # Works with 'latest', version ranges, or specific versions
     cache-utoo: true # Cache the installed Utoo binary
 ```
 
@@ -45,7 +45,7 @@ Cache npm store for faster package installations:
 |-------|-------------|---------|
 | `utoo-version` | The version of Utoo to install (e.g. "latest", "1.0.0", "1.0.x") | `latest` |
 | `registry` | The URL of the npm registry to use for installing Utoo | `https://registry.npmjs.org/` |
-| `cache-utoo` | Cache installed Utoo binary to avoid reinstallation on subsequent runs. Requires a specific version (not "latest"). | `false` |
+| `cache-utoo` | Cache installed Utoo binary to avoid reinstallation on subsequent runs. Automatically resolves "latest" to actual version for proper cache invalidation. | `false` |
 | `cache-store` | Cache npm store directory (~/.cache/nm) for faster package installations | `false` |
 
 ## Outputs
