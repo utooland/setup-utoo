@@ -65,6 +65,11 @@ export default async (options: Input): Promise<Output> => {
   }
 
   addPath(binPath);
+  // On Windows, npm global installs put binaries directly in <prefix>
+  // rather than <prefix>/bin, so add the prefix dir to PATH as well
+  if (platform() === "win32") {
+    addPath(binPath.replace(/[/\\]bin$/, ""));
+  }
 
   const utooPath = join(binPath, "utoo");
 
