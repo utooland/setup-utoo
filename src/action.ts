@@ -68,12 +68,7 @@ export default async (options: Input): Promise<Output> => {
   if (platform() === "win32") {
     // On Windows, npm global installs put binaries directly in <prefix>
     // rather than <prefix>/bin, so add the prefix dir to PATH as well
-    const prefixDir = binPath.replace(/[/\\]bin$/, "");
-    addPath(prefixDir);
-
-    // npm-generated .ps1 shims use #!/bin/bash shebang which doesn't work on Windows.
-    // Create .cmd wrappers that invoke utoo via node directly.
-    createWindowsCmdShims(prefixDir);
+    addPath(binPath.replace(/[/\\]bin$/, ""));
   }
 
   const utooPath = join(binPath, "utoo");
@@ -132,6 +127,12 @@ export default async (options: Input): Promise<Output> => {
         "Failed to install Utoo or get its version. Please try again."
       );
     }
+  }
+
+  // On Windows, npm .ps1 shims use #!/bin/bash which PowerShell can't resolve.
+  // Overwrite with .cmd wrappers that invoke utoo via node directly.
+  if (platform() === "win32") {
+    createWindowsCmdShims(binPath.replace(/[/\\]bin$/, ""));
   }
 
   const cacheState: CacheState = {
@@ -258,13 +259,11 @@ function createWindowsCmdShims(prefixDir: string): void {
 
   for (const name of ["utoo", "ut"]) {
     const cmdPath = join(prefixDir, `${name}.cmd`);
-    if (!existsSync(cmdPath)) {
-      try {
-        fs.writeFileSync(cmdPath, `@node "${entry}" %*\r\n`);
-        info(`Created ${cmdPath}`);
-      } catch (e: any) {
-        warning(`Failed to create ${cmdPath}: ${e.message}`);
-      }
+    try {
+      fs.writeFileSync(cmdPath, `@node "${entry}" %*\r\n`);
+      info(`Created ${cmdPath}`);
+    } catch (e: any) {
+      warning(`Failed to create ${cmdPath}: ${e.message}`);
     }
   }
 }
