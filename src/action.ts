@@ -8,7 +8,6 @@ import { saveState } from "@actions/core";
 import { retry } from "./utils";
 
 const NPMMIRROR_REGISTRY = "https://registry.npmmirror.com";
-const IS_WINDOWS = platform() === "win32";
 
 export type Input = {
   version?: string;
@@ -43,9 +42,10 @@ export default async (options: Input): Promise<Output> => {
 
   // Setup npm cache and bin directories
   const StoreCacheDir = join(homedir(), ".cache", "nm");
-  const prefixDir = join(homedir(), ".npm");
-  const binPath = join(prefixDir, "bin");
-  const npmLibDir = getNpmGlobalModulePath(prefixDir, "utoo");
+  const binPath = join(homedir(), ".npm", "bin");
+  // On Windows, npm global installs go to <prefix>/node_modules/<pkg>
+  // On Linux/macOS, they go to <prefix>/lib/node_modules/<pkg>
+  const npmLibDir = getNpmGlobalModulePath(join(homedir(), ".npm"), "utoo");
 
   // Define specific paths to cache for Utoo
   const utooCachePaths = [
@@ -65,10 +65,6 @@ export default async (options: Input): Promise<Output> => {
   }
 
   addPath(binPath);
-  if (IS_WINDOWS) {
-    // On Windows, npm global installs put binaries in <prefix>/ not <prefix>/bin/
-    addPath(prefixDir);
-  }
 
   const utooPath = join(binPath, "utoo");
 
@@ -92,7 +88,7 @@ export default async (options: Input): Promise<Output> => {
       info(`Restored Utoo binary from cache`);
 
       // Verify the cached utoo is working by checking package.json
-      actualVersion = await getUtooVersion(prefixDir);
+      actualVersion = await getUtooVersion(binPath);
 
       if (actualVersion) {
         info(`Using cached Utoo version ${actualVersion}`);
@@ -117,7 +113,7 @@ export default async (options: Input): Promise<Output> => {
   if (!cacheHit) {
     info(`Installing Utoo version ${version} from ${registry}`);
     actualVersion = await retry(
-      async () => await installUtoo(version, registry, prefixDir),
+      async () => await installUtoo(version, registry, binPath),
       3
     );
 
@@ -126,14 +122,6 @@ export default async (options: Input): Promise<Output> => {
         "Failed to install Utoo or get its version. Please try again."
       );
     }
-  }
-
-  // On Windows, fix up npm-generated shims that don't work:
-  // - .ps1 shims use #!/bin/bash which PowerShell can't resolve
-  // - bin/utoo is a PE binary without .exe extension
-  // - bash can't execute PE binaries directly (needed for npm script execution)
-  if (IS_WINDOWS) {
-    fixWindowsShims(prefixDir);
   }
 
   const cacheState: CacheState = {
@@ -164,10 +152,11 @@ export default async (options: Input): Promise<Output> => {
 async function installUtoo(
   version: string,
   registry: string,
-  prefixDir: string,
+  binPath: string,
 ): Promise<string | undefined> {
   const packageName = version === "latest" ? "utoo" : `utoo@${version}`;
 
+  // Install utoo globally using npm with custom cache directory
   const { exitCode, stderr } = await getExecOutput(
     "npm",
     [
@@ -175,7 +164,7 @@ async function installUtoo(
       "-g",
       packageName,
       `--registry=${registry}`,
-      `--prefix=${prefixDir}`,
+      `--prefix=${binPath.replace(/[/\\]bin$/, "")}`,
     ],
     {
       ignoreReturnCode: true,
@@ -186,131 +175,13 @@ async function installUtoo(
     throw new Error(`Failed to install utoo: ${stderr}`);
   }
 
-  // On Windows, npm postinstall.sh (bash) may not run properly.
-  // Manually run it with Git Bash or copy the native binary.
-  if (IS_WINDOWS) {
-    ensureNativeBinary(prefixDir);
-  }
-
-  const installedVersion = await getUtooVersion(prefixDir);
+  // Verify installation by reading package.json
+  const installedVersion = await getUtooVersion(binPath);
   if (installedVersion) {
     return installedVersion;
   }
 
   throw new Error("Utoo was installed but package.json could not be found or read");
-}
-
-/**
- * On Windows, ensure the native utoo binary is installed.
- * npm's postinstall.sh uses bash which may not run on Windows.
- * Try Git Bash first, then manually copy from platform-specific package.
- */
-function ensureNativeBinary(prefixDir: string): void {
-  const fs = require("node:fs") as typeof import("node:fs");
-  const utooModDir = getNpmGlobalModulePath(prefixDir, "utoo");
-  const utooBinPath = join(utooModDir, "bin", "utoo");
-
-  // Check if the binary is still a placeholder
-  try {
-    const content = fs.readFileSync(utooBinPath, "utf-8");
-    if (!content.includes("placeholder")) {
-      return; // Already a real binary
-    }
-  } catch {
-    return; // File is binary or doesn't exist
-  }
-
-  // Try running postinstall.sh with Git Bash
-  const gitBash = "C:\\Program Files\\Git\\bin\\bash.exe";
-  const postinstallSh = join(utooModDir, "postinstall.sh");
-
-  if (existsSync(gitBash) && existsSync(postinstallSh)) {
-    info("Running postinstall.sh with Git Bash...");
-    const { execSync } = require("node:child_process");
-    try {
-      execSync(`"${gitBash}" ./postinstall.sh`, {
-        cwd: utooModDir,
-        stdio: "inherit",
-      });
-      // Verify it worked
-      try {
-        const content = fs.readFileSync(utooBinPath, "utf-8");
-        if (!content.includes("placeholder")) {
-          info("postinstall.sh installed native binary successfully");
-          return;
-        }
-      } catch {
-        return; // Now binary
-      }
-    } catch (e: any) {
-      warning(`postinstall.sh failed: ${e.message}`);
-    }
-  }
-
-  // Fallback: manually copy from platform-specific package
-  const arch = process.arch === "arm64" ? "arm64" : "x64";
-  const platformPkg = `@utoo/utoo-win32-${arch}`;
-  const candidates = [
-    join(utooModDir, "node_modules", platformPkg, "bin", "utoo"),
-    join(prefixDir, "node_modules", platformPkg, "bin", "utoo"),
-    join(prefixDir, "lib", "node_modules", platformPkg, "bin", "utoo"),
-  ];
-
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) {
-      try {
-        fs.copyFileSync(candidate, utooBinPath);
-        info(`Copied native binary from ${candidate}`);
-        return;
-      } catch (e: any) {
-        warning(`Failed to copy from ${candidate}: ${e.message}`);
-      }
-    }
-  }
-
-  warning("Could not install native binary for Windows");
-}
-
-/**
- * Fix Windows shim issues after install:
- * 1. Remove .ps1 shims (use /bin/bash which PowerShell can't resolve)
- * 2. Create .cmd shims pointing to the .exe binary
- * 3. Create bash shims for npm script execution (bash can't run PE directly)
- */
-function fixWindowsShims(prefixDir: string): void {
-  const fs = require("node:fs") as typeof import("node:fs");
-  const utooModDir = getNpmGlobalModulePath(prefixDir, "utoo");
-  const utooBin = join(utooModDir, "bin", "utoo");
-  const utooExe = utooBin + ".exe";
-
-  // Ensure .exe copy exists
-  if (!existsSync(utooExe) && existsSync(utooBin)) {
-    try {
-      fs.copyFileSync(utooBin, utooExe);
-    } catch { /* ignore */ }
-  }
-
-  for (const name of ["utoo", "ut"]) {
-    // Remove broken .ps1 shim (PowerShell prioritizes .ps1 over .cmd)
-    const ps1Path = join(prefixDir, `${name}.ps1`);
-    try {
-      if (existsSync(ps1Path)) fs.unlinkSync(ps1Path);
-    } catch { /* ignore */ }
-
-    // .cmd shim for PowerShell/cmd.exe
-    const cmdPath = join(prefixDir, `${name}.cmd`);
-    try {
-      fs.writeFileSync(cmdPath, `@"${utooExe}" %*\r\n`);
-    } catch { /* ignore */ }
-
-    // bash shim (no extension) for npm script execution
-    const bashShimPath = join(prefixDir, name);
-    try {
-      fs.writeFileSync(bashShimPath, `#!/bin/sh\nexec "${utooExe}" "$@"\n`);
-    } catch { /* ignore */ }
-  }
-
-  info("Windows shims configured");
 }
 
 function isUtooCacheEnabled(options: Input): boolean {
@@ -335,27 +206,30 @@ async function setRegistry(registry: string): Promise<void> {
       warning(`Failed to set npm registry: ${stderr}`);
     }
   } catch (error) {
-    // ignore
+    // warning(`Failed to set npm registry: ${error.message}`);
   }
 }
 
-async function getUtooVersion(prefixDir: string): Promise<string | undefined> {
+async function getUtooVersion(binPath: string): Promise<string | undefined> {
   try {
     const packageJsonPath = join(
-      getNpmGlobalModulePath(prefixDir, "utoo"),
+      getNpmGlobalModulePath(binPath.replace(/[/\\]bin$/, ""), "utoo"),
       "package.json"
     );
 
+    // Check if package.json exists
     if (!existsSync(packageJsonPath)) {
       return undefined;
     }
 
+    // Read and parse package.json
     const fs = await import("node:fs/promises");
     const content = await fs.readFile(packageJsonPath, "utf-8");
     const packageJson = JSON.parse(content);
 
     return packageJson.version;
   } catch (error) {
+    // If reading package.json fails, utoo might not be properly installed
     return undefined;
   }
 }
@@ -366,7 +240,7 @@ async function getUtooVersion(prefixDir: string): Promise<string | undefined> {
  * Linux/macOS: <prefix>/lib/node_modules/<pkg>
  */
 function getNpmGlobalModulePath(prefix: string, pkg: string): string {
-  if (IS_WINDOWS) {
+  if (platform() === "win32") {
     return join(prefix, "node_modules", pkg);
   }
   return join(prefix, "lib", "node_modules", pkg);
@@ -376,10 +250,12 @@ async function resolveVersion(
   version: string,
   registry: string
 ): Promise<string> {
+  // If it's already a specific version (e.g., "1.0.0"), return as-is
   if (/^\d+\.\d+\.\d+/.test(version)) {
     return version;
   }
 
+  // For "latest" or version ranges, fetch from registry
   try {
     info(`Resolving version "${version}" from registry...`);
 
@@ -388,7 +264,7 @@ async function resolveVersion(
 
     if (!response.ok) {
       warning(`Failed to fetch version manifest: ${response.statusText}`);
-      return version;
+      return version; // Fallback to original version string
     }
 
     const manifest = await response.json();
@@ -402,5 +278,5 @@ async function resolveVersion(
     warning(`Failed to resolve version: ${error}`);
   }
 
-  return version;
+  return version; // Fallback to original version string
 }
