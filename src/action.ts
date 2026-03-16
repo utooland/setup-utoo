@@ -272,17 +272,29 @@ function createWindowsCmdShims(prefixDir: string): void {
       warning(`Failed to remove ${ps1Path}: ${e.message}`);
     }
 
-    // utoo's bin is a native binary — rename to .exe if needed and invoke directly
+    // utoo's bin is a native binary — create .exe copy and shims
     const utooExe = utooBin + ".exe";
     if (!existsSync(utooExe) && existsSync(utooBin)) {
       fs.copyFileSync(utooBin, utooExe);
     }
+
+    // .cmd shim for PowerShell/cmd.exe
     const cmdPath = join(prefixDir, `${name}.cmd`);
     try {
       fs.writeFileSync(cmdPath, `@"${utooExe}" %*\r\n`);
       info(`Created ${cmdPath}`);
     } catch (e: any) {
       warning(`Failed to create ${cmdPath}: ${e.message}`);
+    }
+
+    // bash shim (no extension) for Git Bash / npm script execution
+    // utoo runs npm scripts via bash, which can't execute PE binaries directly
+    const bashShimPath = join(prefixDir, name);
+    try {
+      fs.writeFileSync(bashShimPath, `#!/bin/sh\nexec "${utooExe}" "$@"\n`);
+      info(`Created bash shim ${bashShimPath}`);
+    } catch (e: any) {
+      warning(`Failed to create bash shim ${bashShimPath}: ${e.message}`);
     }
   }
 }
