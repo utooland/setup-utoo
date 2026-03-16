@@ -1,4 +1,4 @@
-import { homedir } from "node:os";
+import { homedir, platform } from "node:os";
 import { join } from "node:path";
 import { mkdirSync, existsSync } from "node:fs";
 import { addPath, info, warning } from "@actions/core";
@@ -43,7 +43,9 @@ export default async (options: Input): Promise<Output> => {
   // Setup npm cache and bin directories
   const StoreCacheDir = join(homedir(), ".cache", "nm");
   const binPath = join(homedir(), ".npm", "bin");
-  const npmLibDir = join(homedir(), ".npm", "lib", "node_modules", "utoo");
+  // On Windows, npm global installs go to <prefix>/node_modules/<pkg>
+  // On Linux/macOS, they go to <prefix>/lib/node_modules/<pkg>
+  const npmLibDir = getNpmGlobalModulePath(join(homedir(), ".npm"), "utoo");
 
   // Define specific paths to cache for Utoo
   const utooCachePaths = [
@@ -210,11 +212,9 @@ async function setRegistry(registry: string): Promise<void> {
 
 async function getUtooVersion(binPath: string): Promise<string | undefined> {
   try {
+    const prefix = binPath.replace(/[/\\]bin$/, "");
     const packageJsonPath = join(
-      binPath.replace(/[/\\]bin$/, ""),
-      "lib",
-      "node_modules",
-      "utoo",
+      getNpmGlobalModulePath(prefix, "utoo"),
       "package.json"
     );
 
@@ -233,6 +233,18 @@ async function getUtooVersion(binPath: string): Promise<string | undefined> {
     // If reading package.json fails, utoo might not be properly installed
     return undefined;
   }
+}
+
+/**
+ * Get the npm global module path for a package.
+ * On Windows: <prefix>/node_modules/<pkg>
+ * On Linux/macOS: <prefix>/lib/node_modules/<pkg>
+ */
+function getNpmGlobalModulePath(prefix: string, pkg: string): string {
+  if (platform() === "win32") {
+    return join(prefix, "node_modules", pkg);
+  }
+  return join(prefix, "lib", "node_modules", pkg);
 }
 
 async function resolveVersion(
