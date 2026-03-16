@@ -252,7 +252,12 @@ async function getUtooVersion(binPath: string): Promise<string | undefined> {
  */
 function createWindowsCmdShims(prefixDir: string): void {
   const fs = require("node:fs") as typeof import("node:fs");
-  const utooBin = join(getNpmGlobalModulePath(prefixDir, "utoo"), "bin", "utoo");
+  const utooModDir = getNpmGlobalModulePath(prefixDir, "utoo");
+  const utooBin = join(utooModDir, "bin", "utoo");
+
+  // npm postinstall uses bash which may not work on Windows.
+  // Manually copy the native binary from the platform-specific package.
+  ensureNativeBinary(utooModDir, prefixDir);
 
   for (const name of ["utoo", "ut"]) {
     // Remove npm-generated .ps1 shim — PowerShell prioritizes .ps1 over .cmd,
@@ -275,6 +280,56 @@ function createWindowsCmdShims(prefixDir: string): void {
     } catch (e: any) {
       warning(`Failed to create ${cmdPath}: ${e.message}`);
     }
+  }
+}
+
+/**
+ * On Windows, utoo's postinstall.sh (bash) may not run.
+ * Manually copy the native binary from @utoo/utoo-win32-{arch}.
+ */
+function ensureNativeBinary(utooModDir: string, prefixDir: string): void {
+  const fs = require("node:fs") as typeof import("node:fs");
+  const binDir = join(utooModDir, "bin");
+  const utooBinPath = join(binDir, "utoo");
+
+  // Check if the binary is still a placeholder
+  try {
+    const content = fs.readFileSync(utooBinPath, "utf-8");
+    if (!content.includes("placeholder")) {
+      info("Native binary already installed");
+      return;
+    }
+  } catch {
+    // File might be binary already or not exist
+    return;
+  }
+
+  const arch = process.arch === "arm64" ? "arm64" : "x64";
+  const platformPkg = `@utoo/utoo-win32-${arch}`;
+  const platformBinDir = join(getNpmGlobalModulePath(prefixDir, platformPkg), "bin");
+
+  if (!existsSync(platformBinDir)) {
+    // Platform package not installed, try installing it
+    info(`Installing ${platformPkg}...`);
+    const { execSync } = require("node:child_process");
+    try {
+      execSync(`npm install -g ${platformPkg} --prefix="${prefixDir}"`, { stdio: "inherit" });
+    } catch (e: any) {
+      warning(`Failed to install ${platformPkg}: ${e.message}`);
+      return;
+    }
+  }
+
+  const srcBin = join(platformBinDir, "utoo");
+  if (existsSync(srcBin)) {
+    try {
+      fs.copyFileSync(srcBin, utooBinPath);
+      info(`Copied native binary from ${platformPkg}`);
+    } catch (e: any) {
+      warning(`Failed to copy native binary: ${e.message}`);
+    }
+  } else {
+    warning(`Native binary not found at ${srcBin}`);
   }
 }
 
