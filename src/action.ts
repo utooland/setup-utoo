@@ -272,10 +272,14 @@ function createWindowsCmdShims(prefixDir: string): void {
       warning(`Failed to remove ${ps1Path}: ${e.message}`);
     }
 
-    // utoo's bin is a native binary, not a JS script — invoke it directly
+    // utoo's bin is a native binary — rename to .exe if needed and invoke directly
+    const utooExe = utooBin + ".exe";
+    if (!existsSync(utooExe) && existsSync(utooBin)) {
+      fs.copyFileSync(utooBin, utooExe);
+    }
     const cmdPath = join(prefixDir, `${name}.cmd`);
     try {
-      fs.writeFileSync(cmdPath, `@"${utooBin}" %*\r\n`);
+      fs.writeFileSync(cmdPath, `@"${utooExe}" %*\r\n`);
       info(`Created ${cmdPath}`);
     } catch (e: any) {
       warning(`Failed to create ${cmdPath}: ${e.message}`);
