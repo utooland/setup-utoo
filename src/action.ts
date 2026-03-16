@@ -304,53 +304,37 @@ function ensureNativeBinary(utooModDir: string, prefixDir: string): void {
     return;
   }
 
-  // Try running postinstall.sh with Git Bash (available on GitHub Actions Windows runners)
-  const gitBash = "C:\\Program Files\\Git\\bin\\bash.exe";
-  const postinstallSh = join(utooModDir, "postinstall.sh");
-
-  if (existsSync(gitBash) && existsSync(postinstallSh)) {
-    info("Running postinstall.sh with Git Bash...");
-    const { execSync } = require("node:child_process");
-    try {
-      execSync(`"${gitBash}" ./postinstall.sh`, {
-        cwd: utooModDir,
-        stdio: "inherit",
-        env: { ...process.env, PATH: process.env.PATH },
-      });
-      info("postinstall.sh completed successfully");
-      return;
-    } catch (e: any) {
-      warning(`postinstall.sh failed: ${e.message}`);
-    }
-  }
-
-  // Fallback: manually copy from platform package
+  // npm postinstall uses bash which may fail on Windows.
+  // Manually find and copy the native binary from the platform-specific package.
   const arch = process.arch === "arm64" ? "arm64" : "x64";
   const platformPkg = `@utoo/utoo-win32-${arch}`;
-  const platformBinDir = join(getNpmGlobalModulePath(prefixDir, platformPkg), "bin");
 
-  if (!existsSync(platformBinDir)) {
-    info(`Installing ${platformPkg}...`);
-    const { execSync } = require("node:child_process");
-    try {
-      execSync(`npm install -g ${platformPkg} --prefix="${prefixDir}"`, { stdio: "inherit" });
-    } catch (e: any) {
-      warning(`Failed to install ${platformPkg}: ${e.message}`);
-      return;
+  // Search for the platform binary in possible locations
+  const prefix = prefixDir;
+  const candidates = [
+    // Windows npm global: <prefix>/node_modules/@utoo/utoo-win32-x64/bin/utoo
+    join(prefix, "node_modules", platformPkg, "bin", "utoo"),
+    // Unix npm global: <prefix>/lib/node_modules/@utoo/utoo-win32-x64/bin/utoo
+    join(prefix, "lib", "node_modules", platformPkg, "bin", "utoo"),
+    // Nested under utoo's own node_modules
+    join(utooModDir, "node_modules", platformPkg, "bin", "utoo"),
+  ];
+
+  info(`Looking for native binary from ${platformPkg}...`);
+  for (const candidate of candidates) {
+    info(`  Checking ${candidate}`);
+    if (existsSync(candidate)) {
+      try {
+        fs.copyFileSync(candidate, utooBinPath);
+        info(`Copied native binary from ${candidate}`);
+        return;
+      } catch (e: any) {
+        warning(`Failed to copy from ${candidate}: ${e.message}`);
+      }
     }
   }
 
-  const srcBin = join(platformBinDir, "utoo");
-  if (existsSync(srcBin)) {
-    try {
-      fs.copyFileSync(srcBin, utooBinPath);
-      info(`Copied native binary from ${platformPkg}`);
-    } catch (e: any) {
-      warning(`Failed to copy native binary: ${e.message}`);
-    }
-  } else {
-    warning(`Native binary not found at ${srcBin}`);
-  }
+  warning(`Native binary not found in any candidate path`);
 }
 
 /**
