@@ -252,10 +252,7 @@ async function getUtooVersion(binPath: string): Promise<string | undefined> {
  */
 function createWindowsCmdShims(prefixDir: string): void {
   const fs = require("node:fs") as typeof import("node:fs");
-  const utooEntry = join(getNpmGlobalModulePath(prefixDir, "utoo"), "bin", "utoo.js");
-
-  // If the JS entry doesn't exist, try without .js extension
-  const entry = existsSync(utooEntry) ? utooEntry : utooEntry.replace(/\.js$/, "");
+  const utooBin = join(getNpmGlobalModulePath(prefixDir, "utoo"), "bin", "utoo");
 
   for (const name of ["utoo", "ut"]) {
     // Remove npm-generated .ps1 shim — PowerShell prioritizes .ps1 over .cmd,
@@ -270,9 +267,10 @@ function createWindowsCmdShims(prefixDir: string): void {
       warning(`Failed to remove ${ps1Path}: ${e.message}`);
     }
 
+    // utoo's bin is a native binary, not a JS script — invoke it directly
     const cmdPath = join(prefixDir, `${name}.cmd`);
     try {
-      fs.writeFileSync(cmdPath, `@node "${entry}" %*\r\n`);
+      fs.writeFileSync(cmdPath, `@"${utooBin}" %*\r\n`);
       info(`Created ${cmdPath}`);
     } catch (e: any) {
       warning(`Failed to create ${cmdPath}: ${e.message}`);
