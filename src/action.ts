@@ -65,10 +65,15 @@ export default async (options: Input): Promise<Output> => {
   }
 
   addPath(binPath);
-  // On Windows, npm global installs put binaries directly in <prefix>
-  // rather than <prefix>/bin, so add the prefix dir to PATH as well
   if (platform() === "win32") {
+    // On Windows, npm global installs put binaries directly in <prefix>
+    // rather than <prefix>/bin, so add the prefix dir to PATH as well
     addPath(binPath.replace(/[/\\]bin$/, ""));
+
+    // npm-generated .ps1 shims use the shebang from bin scripts.
+    // utoo's bin uses #!/bin/bash, which resolves to /bin/bash.exe on Windows.
+    // Create C:\bin\bash.exe symlink pointing to Git's bash.exe so the shim works.
+    ensureWindowsBash();
   }
 
   const utooPath = join(binPath, "utoo");
@@ -238,6 +243,38 @@ async function getUtooVersion(binPath: string): Promise<string | undefined> {
     // If reading package.json fails, utoo might not be properly installed
     return undefined;
   }
+}
+
+/**
+ * On Windows, npm .ps1 shims resolve #!/bin/bash to /bin/bash.exe which doesn't exist.
+ * Create C:\bin\bash.exe as a copy of Git's bash.exe so the shim can find it.
+ */
+function ensureWindowsBash(): void {
+  const target = "C:\\bin\\bash.exe";
+  if (existsSync(target)) return;
+
+  // Git for Windows bash locations
+  const candidates = [
+    "C:\\Program Files\\Git\\bin\\bash.exe",
+    "C:\\Program Files (x86)\\Git\\bin\\bash.exe",
+    "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+  ];
+
+  for (const src of candidates) {
+    if (existsSync(src)) {
+      try {
+        mkdirSync("C:\\bin", { recursive: true });
+        const fs = require("node:fs");
+        fs.copyFileSync(src, target);
+        info(`Created ${target} from ${src}`);
+        return;
+      } catch (e: any) {
+        warning(`Failed to create ${target}: ${e.message}`);
+      }
+    }
+  }
+
+  warning("Could not find Git bash.exe to create /bin/bash.exe symlink");
 }
 
 /**
