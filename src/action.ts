@@ -304,12 +304,32 @@ function ensureNativeBinary(utooModDir: string, prefixDir: string): void {
     return;
   }
 
+  // Try running postinstall.sh with Git Bash (available on GitHub Actions Windows runners)
+  const gitBash = "C:\\Program Files\\Git\\bin\\bash.exe";
+  const postinstallSh = join(utooModDir, "postinstall.sh");
+
+  if (existsSync(gitBash) && existsSync(postinstallSh)) {
+    info("Running postinstall.sh with Git Bash...");
+    const { execSync } = require("node:child_process");
+    try {
+      execSync(`"${gitBash}" ./postinstall.sh`, {
+        cwd: utooModDir,
+        stdio: "inherit",
+        env: { ...process.env, PATH: process.env.PATH },
+      });
+      info("postinstall.sh completed successfully");
+      return;
+    } catch (e: any) {
+      warning(`postinstall.sh failed: ${e.message}`);
+    }
+  }
+
+  // Fallback: manually copy from platform package
   const arch = process.arch === "arm64" ? "arm64" : "x64";
   const platformPkg = `@utoo/utoo-win32-${arch}`;
   const platformBinDir = join(getNpmGlobalModulePath(prefixDir, platformPkg), "bin");
 
   if (!existsSync(platformBinDir)) {
-    // Platform package not installed, try installing it
     info(`Installing ${platformPkg}...`);
     const { execSync } = require("node:child_process");
     try {
