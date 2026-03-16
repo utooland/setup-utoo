@@ -68,12 +68,12 @@ export default async (options: Input): Promise<Output> => {
   if (platform() === "win32") {
     // On Windows, npm global installs put binaries directly in <prefix>
     // rather than <prefix>/bin, so add the prefix dir to PATH as well
-    addPath(binPath.replace(/[/\\]bin$/, ""));
+    const prefixDir = binPath.replace(/[/\\]bin$/, "");
+    addPath(prefixDir);
 
-    // npm-generated .ps1 shims use the shebang from bin scripts.
-    // utoo's bin uses #!/bin/bash, which resolves to /bin/bash.exe on Windows.
-    // Create C:\bin\bash.exe symlink pointing to Git's bash.exe so the shim works.
-    ensureWindowsBash();
+    // npm-generated .ps1 shims use #!/bin/bash shebang which doesn't work on Windows.
+    // Create .cmd wrappers that invoke utoo via node directly.
+    createWindowsCmdShims(prefixDir);
   }
 
   const utooPath = join(binPath, "utoo");
@@ -246,35 +246,27 @@ async function getUtooVersion(binPath: string): Promise<string | undefined> {
 }
 
 /**
- * On Windows, npm .ps1 shims resolve #!/bin/bash to /bin/bash.exe which doesn't exist.
- * Create C:\bin\bash.exe as a copy of Git's bash.exe so the shim can find it.
+ * On Windows, npm .ps1 shims use #!/bin/bash which PowerShell can't resolve.
+ * Create .cmd wrappers in the prefix dir that invoke utoo's JS entry via node.
  */
-function ensureWindowsBash(): void {
-  const target = "C:\\bin\\bash.exe";
-  if (existsSync(target)) return;
+function createWindowsCmdShims(prefixDir: string): void {
+  const fs = require("node:fs") as typeof import("node:fs");
+  const utooEntry = join(getNpmGlobalModulePath(prefixDir, "utoo"), "bin", "utoo.js");
 
-  // Git for Windows bash locations
-  const candidates = [
-    "C:\\Program Files\\Git\\bin\\bash.exe",
-    "C:\\Program Files (x86)\\Git\\bin\\bash.exe",
-    "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
-  ];
+  // If the JS entry doesn't exist, try without .js extension
+  const entry = existsSync(utooEntry) ? utooEntry : utooEntry.replace(/\.js$/, "");
 
-  for (const src of candidates) {
-    if (existsSync(src)) {
+  for (const name of ["utoo", "ut"]) {
+    const cmdPath = join(prefixDir, `${name}.cmd`);
+    if (!existsSync(cmdPath)) {
       try {
-        mkdirSync("C:\\bin", { recursive: true });
-        const fs = require("node:fs");
-        fs.copyFileSync(src, target);
-        info(`Created ${target} from ${src}`);
-        return;
+        fs.writeFileSync(cmdPath, `@node "${entry}" %*\r\n`);
+        info(`Created ${cmdPath}`);
       } catch (e: any) {
-        warning(`Failed to create ${target}: ${e.message}`);
+        warning(`Failed to create ${cmdPath}: ${e.message}`);
       }
     }
   }
-
-  warning("Could not find Git bash.exe to create /bin/bash.exe symlink");
 }
 
 /**
