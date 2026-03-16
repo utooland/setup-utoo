@@ -258,6 +258,18 @@ function createWindowsCmdShims(prefixDir: string): void {
   const entry = existsSync(utooEntry) ? utooEntry : utooEntry.replace(/\.js$/, "");
 
   for (const name of ["utoo", "ut"]) {
+    // Remove npm-generated .ps1 shim — PowerShell prioritizes .ps1 over .cmd,
+    // and the .ps1 shim tries to use /bin/bash which doesn't work on Windows.
+    const ps1Path = join(prefixDir, `${name}.ps1`);
+    try {
+      if (existsSync(ps1Path)) {
+        fs.unlinkSync(ps1Path);
+        info(`Removed broken ${ps1Path}`);
+      }
+    } catch (e: any) {
+      warning(`Failed to remove ${ps1Path}: ${e.message}`);
+    }
+
     const cmdPath = join(prefixDir, `${name}.cmd`);
     try {
       fs.writeFileSync(cmdPath, `@node "${entry}" %*\r\n`);
