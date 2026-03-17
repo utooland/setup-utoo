@@ -14,6 +14,7 @@ export type Input = {
   registry?: string;
   cacheUtoo?: boolean;
   cacheStore?: boolean;
+  tgzUrl?: string;
 };
 
 export type Output = {
@@ -111,11 +112,20 @@ export default async (options: Input): Promise<Output> => {
 
   // Install Utoo if not restored from cache
   if (!cacheHit) {
-    info(`Installing Utoo version ${version} from ${registry}`);
-    actualVersion = await retry(
-      async () => await installUtoo(version, registry, binPath),
-      3
-    );
+    const tgzUrl = options.tgzUrl || "";
+    if (tgzUrl) {
+      info(`Installing Utoo from tgz: ${tgzUrl}`);
+      actualVersion = await retry(
+        async () => await installUtooFromTgz(tgzUrl, binPath),
+        3
+      );
+    } else {
+      info(`Installing Utoo version ${version} from ${registry}`);
+      actualVersion = await retry(
+        async () => await installUtoo(version, registry, binPath),
+        3
+      );
+    }
 
     if (!actualVersion) {
       throw new Error(
@@ -182,6 +192,46 @@ async function installUtoo(
   }
 
   throw new Error("Utoo was installed but package.json could not be found or read");
+}
+
+async function installUtooFromTgz(
+  tgzUrl: string,
+  binPath: string,
+): Promise<string | undefined> {
+  const prefix = binPath.replace(/[/\\]bin$/, "");
+
+  // Download tgz if it's a URL
+  let tgzPath = tgzUrl;
+  if (tgzUrl.startsWith("http://") || tgzUrl.startsWith("https://")) {
+    info(`Downloading tgz from ${tgzUrl}...`);
+    const { execSync } = require("node:child_process");
+    tgzPath = join(process.env.RUNNER_TEMP || require("node:os").tmpdir(), "utoo.tgz");
+    execSync(`node -e "const https=require('https');const fs=require('fs');const f=fs.createWriteStream('${tgzPath.replace(/\\/g, "\\\\")}');https.get('${tgzUrl}',r=>{r.pipe(f);f.on('finish',()=>f.close())})"`, { stdio: "inherit" });
+  }
+
+  const { exitCode, stderr } = await getExecOutput(
+    "npm",
+    [
+      "install",
+      "-g",
+      tgzPath,
+      `--prefix=${prefix}`,
+    ],
+    {
+      ignoreReturnCode: true,
+    }
+  );
+
+  if (exitCode !== 0) {
+    throw new Error(`Failed to install utoo from tgz: ${stderr}`);
+  }
+
+  const installedVersion = await getUtooVersion(binPath);
+  if (installedVersion) {
+    return installedVersion;
+  }
+
+  throw new Error("Utoo was installed from tgz but package.json could not be found");
 }
 
 function isUtooCacheEnabled(options: Input): boolean {

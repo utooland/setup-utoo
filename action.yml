@@ -25,6 +25,10 @@ inputs:
     type: boolean
     default: true
     description: Cache installed Utoo binary to avoid reinstallation on subsequent runs.
+  utoo-tgz:
+    description: URL or path to a pre-built utoo .tgz package. When set, installs from this tgz instead of the npm registry.
+    required: false
+    default: ''
 
 outputs:
   utoo-version:
