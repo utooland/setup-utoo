@@ -77,7 +77,7 @@ export default async (options: Input): Promise<Output> => {
 
   // Handle Utoo binary cache
   if (utooCacheEnabled) {
-    const utooCacheKey = `utoo-binary-${resolvedVersion}`;
+    const utooCacheKey = `utoo-binary-${resolvedVersion}-${process.platform}-${process.arch}`;
 
     info(`Attempting to restore Utoo binary cache with key: ${utooCacheKey}`);
     const utooCacheRestored = await restoreCache(utooCachePaths, utooCacheKey);
