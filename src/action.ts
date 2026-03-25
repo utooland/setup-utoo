@@ -41,17 +41,34 @@ export default async (options: Input): Promise<Output> => {
   const storeCacheEnabled = options.cacheStore === true && isFeatureAvailable();
 
   // Setup npm cache and bin directories
+  // npm global layout differs by platform:
+  //   Unix:    {prefix}/bin/utoo, {prefix}/lib/node_modules/utoo/
+  //   Windows: {prefix}/utoo.cmd, {prefix}/node_modules/utoo/
+  const isWindows = process.platform === "win32";
+  const npmPrefix = join(homedir(), ".npm");
   const StoreCacheDir = join(homedir(), ".cache", "nm");
-  const binPath = join(homedir(), ".npm", "bin");
-  const npmLibDir = join(homedir(), ".npm", "lib", "node_modules", "utoo");
+  const binPath = isWindows ? npmPrefix : join(npmPrefix, "bin");
+  const npmLibDir = isWindows
+    ? join(npmPrefix, "node_modules", "utoo")
+    : join(npmPrefix, "lib", "node_modules", "utoo");
 
   // Define specific paths to cache for Utoo
-  const utooCachePaths = [
-    join(binPath, "utoo"),
-    join(binPath, "ut"),
-    join(binPath, "utx"),
-    npmLibDir,
-  ];
+  const utooCachePaths = isWindows
+    ? [
+        join(binPath, "utoo"),
+        join(binPath, "utoo.cmd"),
+        join(binPath, "ut"),
+        join(binPath, "ut.cmd"),
+        join(binPath, "utx"),
+        join(binPath, "utx.cmd"),
+        npmLibDir,
+      ]
+    : [
+        join(binPath, "utoo"),
+        join(binPath, "ut"),
+        join(binPath, "utx"),
+        npmLibDir,
+      ];
 
   try {
     mkdirSync(binPath, { recursive: true });
