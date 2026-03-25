@@ -209,30 +209,31 @@ async function setRegistry(registry: string): Promise<void> {
 }
 
 async function getUtooVersion(binPath: string): Promise<string | undefined> {
-  try {
-    const packageJsonPath = join(
-      binPath.replace(/[/\\]bin$/, ""),
-      "lib",
-      "node_modules",
-      "utoo",
-      "package.json"
-    );
+  const prefixDir = binPath.replace(/[/\\]bin$/, "");
 
-    // Check if package.json exists
-    if (!existsSync(packageJsonPath)) {
-      return undefined;
+  // npm global layout differs by platform:
+  //   Unix:    {prefix}/lib/node_modules/utoo/package.json
+  //   Windows: {prefix}/node_modules/utoo/package.json
+  const candidates = [
+    join(prefixDir, "lib", "node_modules", "utoo", "package.json"),
+    join(prefixDir, "node_modules", "utoo", "package.json"),
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      if (!existsSync(candidate)) continue;
+
+      const fs = await import("node:fs/promises");
+      const content = await fs.readFile(candidate, "utf-8");
+      const packageJson = JSON.parse(content);
+
+      if (packageJson.version) return packageJson.version;
+    } catch {
+      continue;
     }
-
-    // Read and parse package.json
-    const fs = await import("node:fs/promises");
-    const content = await fs.readFile(packageJsonPath, "utf-8");
-    const packageJson = JSON.parse(content);
-
-    return packageJson.version;
-  } catch (error) {
-    // If reading package.json fails, utoo might not be properly installed
-    return undefined;
   }
+
+  return undefined;
 }
 
 async function resolveVersion(
