@@ -225,15 +225,19 @@ function isUtooCacheEnabled(options: Input): boolean {
 }
 
 async function setRegistry(registry: string): Promise<void> {
-  const utBin = process.platform === "win32" ? "ut.exe" : "ut";
   try {
-    const { exitCode, stderr } = await getExecOutput(utBin, [
+    const { exitCode, stderr } = await getExecOutput("ut", [
       "config",
       "set",
       "registry",
       registry,
       '--global',
-    ], { ignoreReturnCode: true });
+    ], {
+      ignoreReturnCode: true,
+      // Windows: spawn PE binary requires shell to resolve .exe/.cmd
+      windowsVerbatimArguments: false,
+      ...(process.platform === "win32" ? { shell: true } : {}),
+    } as any);
 
     if (exitCode !== 0) {
       warning(`Failed to set npm registry: ${stderr}`);
