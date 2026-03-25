@@ -226,22 +226,12 @@ function isUtooCacheEnabled(options: Input): boolean {
 
 async function setRegistry(registry: string): Promise<void> {
   try {
-    const { exitCode, stderr } = await getExecOutput("ut", [
-      "config",
-      "set",
-      "registry",
-      registry,
-      '--global',
-    ], {
-      ignoreReturnCode: true,
-      // Windows: spawn PE binary requires shell to resolve .exe/.cmd
-      windowsVerbatimArguments: false,
-      ...(process.platform === "win32" ? { shell: true } : {}),
-    } as any);
-
-    if (exitCode !== 0) {
-      warning(`Failed to set npm registry: ${stderr}`);
-    }
+    const { execSync } = require("child_process");
+    execSync(`ut config set registry ${registry} --global`, {
+      stdio: "pipe",
+      // Windows needs shell to resolve ut → ut.exe
+      shell: true,
+    });
   } catch (error) {
     warning(`Failed to set npm registry: ${error}`);
   }
