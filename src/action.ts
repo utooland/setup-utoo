@@ -41,15 +41,23 @@ export default async (options: Input): Promise<Output> => {
   const storeCacheEnabled = options.cacheStore === true && isFeatureAvailable();
 
   // Setup npm cache and bin directories
+  // npm global layout differs by platform:
+  //   Unix:    {prefix}/bin/utoo, {prefix}/lib/node_modules/utoo/
+  //   Windows: {prefix}/utoo.exe, {prefix}/node_modules/utoo/
+  const isWindows = process.platform === "win32";
+  const npmPrefix = join(homedir(), ".npm");
   const StoreCacheDir = join(homedir(), ".cache", "nm");
-  const binPath = join(homedir(), ".npm", "bin");
-  const npmLibDir = join(homedir(), ".npm", "lib", "node_modules", "utoo");
+  const binPath = isWindows ? npmPrefix : join(npmPrefix, "bin");
+  const npmLibDir = isWindows
+    ? join(npmPrefix, "node_modules", "utoo")
+    : join(npmPrefix, "lib", "node_modules", "utoo");
 
   // Define specific paths to cache for Utoo
+  const binExt = isWindows ? ".exe" : "";
   const utooCachePaths = [
-    join(binPath, "utoo"),
-    join(binPath, "ut"),
-    join(binPath, "utx"),
+    join(binPath, `utoo${binExt}`),
+    join(binPath, `ut${binExt}`),
+    ...(isWindows ? [join(binPath, "utx.cmd")] : [join(binPath, "utx")]),
     npmLibDir,
   ];
 
@@ -192,19 +200,13 @@ function isUtooCacheEnabled(options: Input): boolean {
 
 async function setRegistry(registry: string): Promise<void> {
   try {
-    const { exitCode, stderr } = await getExecOutput("ut", [
-      "config",
-      "set",
-      "registry",
-      registry,
-      '--global',
-    ]);
-
-    if (exitCode !== 0) {
-      warning(`Failed to set npm registry: ${stderr}`);
-    }
+    const { execSync } = require("child_process");
+    execSync(`ut config set registry ${registry} --global`, {
+      stdio: "pipe",
+      shell: true,
+    });
   } catch (error) {
-    // warning(`Failed to set npm registry: ${error.message}`);
+    warning(`Failed to set npm registry: ${error}`);
   }
 }
 
