@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { mkdirSync, existsSync } from "node:fs";
+import { mkdirSync, existsSync, copyFileSync } from "node:fs";
 import { addPath, info, warning } from "@actions/core";
 import { isFeatureAvailable, restoreCache } from "@actions/cache";
 import { getExecOutput } from "@actions/exec";
@@ -55,12 +55,9 @@ export default async (options: Input): Promise<Output> => {
   // Define specific paths to cache for Utoo
   const utooCachePaths = isWindows
     ? [
-        join(binPath, "utoo"),
-        join(binPath, "utoo.cmd"),
-        join(binPath, "ut"),
-        join(binPath, "ut.cmd"),
-        join(binPath, "utx"),
-        join(binPath, "utx.cmd"),
+        join(binPath, "utoo.exe"),
+        join(binPath, "ut.exe"),
+        join(binPath, "utx.exe"),
         npmLibDir,
       ]
     : [
@@ -188,6 +185,26 @@ async function installUtoo(
 
   if (exitCode !== 0) {
     throw new Error(`Failed to install utoo: ${stderr}`);
+  }
+
+  // On Windows, npm creates bash shims that point to bin/utoo (an ELF binary).
+  // Copy the native binary as .exe so pwsh/cmd/bash can all find it directly.
+  if (process.platform === "win32") {
+    const prefixDir = binPath.replace(/[/\\]bin$/, "");
+    const npmModuleDir = join(prefixDir, "node_modules", "utoo");
+
+    for (const name of ["utoo", "ut", "utx"]) {
+      const nativeBin = join(npmModuleDir, "bin", name);
+      if (existsSync(nativeBin)) {
+        const exePath = join(binPath, `${name}.exe`);
+        try {
+          copyFileSync(nativeBin, exePath);
+          info(`Copied ${name} native binary to ${exePath}`);
+        } catch (e) {
+          warning(`Failed to copy ${name}.exe: ${e}`);
+        }
+      }
+    }
   }
 
   // Verify installation by reading package.json
