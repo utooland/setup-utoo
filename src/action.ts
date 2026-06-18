@@ -36,7 +36,10 @@ export type CacheState = {
 
 export default async (options: Input): Promise<Output> => {
   const version = options.version || "latest";
-  const registry = options.registry || "https://registry.npmjs.org/";
+  const registry = (options.registry || "https://registry.npmjs.org").replace(
+    /\/+$/,
+    "",
+  );
   const utooCacheEnabled = isUtooCacheEnabled(options);
   const storeCacheEnabled = options.cacheStore === true && isFeatureAvailable();
 
