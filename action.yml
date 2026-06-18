@@ -14,7 +14,7 @@ inputs:
   registry:
     description: The URL of the npm registry to use for installing Utoo.
     required: false
-    default: https://registry.npmjs.org/
+    default: https://registry.npmjs.org
   cache-store:
     required: false
     type: boolean

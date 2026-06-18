@@ -8,7 +8,7 @@ if (!process.env.RUNNER_TEMP) {
 
 runAction({
   version: getInput("utoo-version") || "latest",
-  registry: getInput("registry") || "https://registry.npmjs.org/",
+  registry: getInput("registry") || "https://registry.npmjs.org",
   cacheStore: getBooleanInput("cache-store") === true, // Default false
   cacheUtoo: getBooleanInput("cache-utoo") === true, // Default true
 })
