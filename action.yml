@@ -24,11 +24,15 @@ inputs:
     required: false
     type: boolean
     default: true
-    description: Cache installed Utoo binary to avoid reinstallation on subsequent runs.
+    description: Cache installed Utoo commands to avoid reinstallation on subsequent runs.
 
 outputs:
   utoo-version:
     description: The version of Utoo that was installed.
+  utoo-path:
+    description: The command path added to PATH.
+  cache-hit:
+    description: Whether Utoo was restored from cache.
 
 runs:
   using: "node20"
