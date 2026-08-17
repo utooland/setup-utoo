@@ -19,7 +19,7 @@ jobs:
           - { cache-store: false }
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Utoo
         uses: ./
@@ -48,7 +48,7 @@ jobs:
     needs: test
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Restore Utoo
         id: setup-utoo

@@ -18,7 +18,7 @@
   "author": "utooland",
   "scripts": {
     "format": "prettier --write src *.yml *.json *.md",
-    "build": "esbuild --target=node20 --outfile=dist/setup/index.js --bundle --keep-names --minify --platform=node --format=cjs src/index.ts && esbuild --target=node20 --outfile=dist/cache-save/index.js --bundle --keep-names --minify --platform=node --format=cjs src/cache-save.ts",
+    "build": "esbuild --target=node24 --outfile=dist/setup/index.js --bundle --keep-names --minify --platform=node --format=cjs src/index.ts && esbuild --target=node24 --outfile=dist/cache-save/index.js --bundle --keep-names --minify --platform=node --format=cjs src/cache-save.ts",
     "start": "npm run build && node dist/setup/index.js"
   },
   "dependencies": {
@@ -30,7 +30,7 @@
     "@actions/tool-cache": "^2.0.1"
   },
   "devDependencies": {
-    "@types/node": "^20.8.2",
+    "@types/node": "^24.10.1",
     "esbuild": "^0.19.2",
     "prettier": "^3.4.2",
     "typescript": "^4.9.5"

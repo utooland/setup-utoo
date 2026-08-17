@@ -35,7 +35,7 @@ outputs:
     description: Whether Utoo was restored from cache.
 
 runs:
-  using: "node20"
+  using: "node24"
   main: "dist/setup/index.js"
   post: "dist/cache-save/index.js"
   post-if: success()
